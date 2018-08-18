@@ -1,0 +1,297 @@
+---
+title: "final project"
+author: "JIE and Mengjiao"
+date: "November 28, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE, warning=FALSE}
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(tidyr)
+library(caret)
+library(randomForest)
+
+setwd("C:/Users/Merlot/Desktop/2017 Fall/535/finalproject/bank")
+
+bank.full <- read.csv("bank-additional-full.csv",sep = ";")
+
+get_binCI <- function(x,n) {
+  as_data_frame(setNames(as.list(binom.test(x,n)$conf.int),c("lwr","upr")))}
+
+
+
+##Exploratory Data Analysis (EDA)
+#summary of all variables
+summary(bank.full)
+
+##Recode
+bank.full$y <- as.numeric(recode(bank.full$y,"yes"=1,"no"=0))
+
+
+#Individual feature visualisations
+#bank client data
+#age
+bank.full%>%
+  ggplot(aes(age, fill = age)) + geom_histogram(binwidth = 5)
+
+bank.full%>%
+  ggplot(aes(x=age, y = y))+
+  geom_point(color  = 'grey50')+
+  theme_bw()
+
+#job
+bank.full%>%
+  ggplot(aes(job,fill = job)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45))
+
+bank.full%>%
+  group_by(job, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(job, deposit_rate, fill = job))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45))
+
+#marital
+bank.full%>%
+  ggplot(aes(marital,fill = marital)) + geom_bar()
+
+bank.full%>%
+  group_by(marital, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(marital, deposit_rate, fill = marital))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")
+
+#education
+bank.full%>%
+  ggplot(aes(education,fill = education)) + geom_bar()+
+  theme(legend.position = "none", axis.text.x = element_text(angle = 30))
+
+
+bank.full%>%
+  group_by(education, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(education, deposit_rate, fill = education))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")+
+  theme(legend.position = "none", axis.text.x = element_text(angle = 30))
+
+#default
+bank.full%>%
+  ggplot(aes(default,fill = default)) + geom_bar()
+
+# housing
+bank.full%>%
+  ggplot(aes(housing,fill = housing)) + geom_bar()
+
+bank.full%>%
+  group_by(housing, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(housing, deposit_rate, fill = housing))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")
+
+
+
+# loan
+bank.full%>%
+  ggplot(aes(loan,fill = loan)) + geom_bar()
+
+bank.full%>%
+  group_by(loan, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(loan, deposit_rate, fill = loan))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")
+
+#related with the last contact of the current campaign
+# contact
+bank.full%>%
+  ggplot(aes(contact,fill = contact)) + geom_bar()
+
+bank.full%>%
+  group_by(contact, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(contact, deposit_rate, fill = contact))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")
+
+
+# month
+bank.full%>%
+  ggplot(aes(month,fill = month)) + geom_bar()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+bank.full%>%
+  group_by(month, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(month, deposit_rate, fill = month))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+#day of week
+bank.full%>%
+  ggplot(aes(day_of_week, fill = day_of_week)) + geom_bar()+
+  scale_x_discrete(limits = c("mon", "tue", "wed","thu", "fri"))
+
+
+bank.full%>%
+  group_by(day_of_week, y)%>%
+  count()%>%
+  spread(y, n)%>%
+  mutate(deposit_rate = `1`/(`1`+`0`)*100,
+         lwr = get_binCI(`1`,(`1`+`0`))[[1]]*100,
+         upr = get_binCI(`1`,(`1`+`0`))[[2]]*100
+  ) %>%
+  ggplot(aes(day_of_week, deposit_rate, fill = day_of_week))+
+  geom_col()+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.5, size = 0.7, color = "gray30") +
+  theme(legend.position = "none")+
+  scale_x_discrete(limits = c("mon", "tue", "wed","thu", "fri"))
+
+#duration
+bank.full%>%
+  ggplot(aes(duration, fill = duration)) + geom_histogram()
+
+bank.full%>%
+  ggplot(aes(x=duration, y = y))+
+  geom_point(color  = 'grey50')+
+  theme_bw()
+```
+```{r}
+#other attributes
+#campaign
+bank.full%>%
+  ggplot(aes(campaign, fill = campaign)) + geom_histogram()
+
+# pdays
+
+# previous
+bank.full%>%
+  ggplot(aes(previous, fill = previous)) + geom_bar()
+
+#poutcome
+bank.full%>%
+  ggplot(aes(poutcome, fill = poutcome)) + geom_bar()
+
+#social and economic context attributes
+#emp.var.rate
+bank.full%>%
+  ggplot(aes(x = month, y = emp.var.rate))+geom_jitter()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+#cons.price.idx
+bank.full%>%
+  ggplot(aes(x = month, y = cons.price.idx))+geom_jitter()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+#cons.conf.idx
+bank.full%>%
+  ggplot(aes(x = month, y = cons.conf.idx))+geom_jitter()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+
+#euribor3m
+bank.full%>%
+  ggplot(aes(x = month, y = euribor3m))+geom_jitter()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+#nr.employed
+bank.full%>%
+  ggplot(aes(x = month, y = nr.employed))+geom_jitter()+
+  scale_x_discrete(limits = 
+                     c("jan", "feb", "mar", 
+                       "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))
+
+
+
+bank.full%>%
+  select(age, duration, emp.var.rate, cons.price.idx, cons.conf.idx, euribor3m)%>%
+  cor(use="complete.obs", method = "spearman") %>%
+  corrplot(type="lower", method = "color")
+
+```
+
+```{r}
+train.index <- createDataPartition(bank.full$y, p = 0.6, list = FALSE)
+train <- bank.full[train.index,]
+test <- bank.full[-train.index,]
+```
+
+```{r}
+bank.rf <- randomForest(as.factor(y)~., data = train, mtry = 5, ntree = 500, importance = TRUE)
+
+importance(bank.rf)
+varImpPlot(bank.rf)
+
+pred = predict(bank.rf, test)
+table(pred,test$y)
+mean(pred == test$y)
+```
